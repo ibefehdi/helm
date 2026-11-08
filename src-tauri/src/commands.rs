@@ -9,7 +9,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::model::{FanCurve, LightingPreset, LightingZone, Profile, Settings, import_gcc_profiles};
 use crate::monitor::Sample;
 use crate::state::{self, AppState, Overrides, Status};
-use crate::{gpu, logitech, storage, system, updates};
+use crate::{gpu, logitech, pulsar_mouse, storage, system, updates};
 
 type CmdResult<T> = Result<T, String>;
 
@@ -674,4 +674,16 @@ pub fn devices_get() -> logitech::DevicesSnapshot {
 #[tauri::command]
 pub fn devices_apply(app: AppHandle, change: logitech::DeviceApply) -> CmdResult<logitech::DevicesSnapshot> {
     logitech::apply(&app, change)
+}
+
+// ---- pulsar mouse -------------------------------------------------------------
+
+#[tauri::command]
+pub async fn pulsar_get() -> pulsar_mouse::MouseSnapshot {
+    tokio::task::spawn_blocking(pulsar_mouse::latest).await.unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn pulsar_apply(app: AppHandle, change: pulsar_mouse::MouseApply) -> CmdResult<pulsar_mouse::MouseSnapshot> {
+    tokio::task::spawn_blocking(move || pulsar_mouse::apply(&app, change)).await.map_err(err)?
 }
