@@ -649,7 +649,7 @@
     inset: 0;
     display: grid;
     place-items: center;
-    background: rgb(0 0 0 / 55%);
+    background: var(--saqr-utility-overlay);
     z-index: 50;
   }
 

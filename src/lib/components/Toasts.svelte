@@ -34,12 +34,15 @@
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 10px 8px 10px 12px;
-    border-radius: var(--radius);
-    background: var(--raised);
-    border: 1px solid var(--line-strong);
-    box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+    padding: 12px 8px 12px 14px;
+    border-radius: var(--saqr-radius-lg);
+    background: var(--saqr-bg-surface);
+    border: 1px solid var(--saqr-stroke-soft);
+    box-shadow:
+      0 0 0 1px var(--saqr-stroke-soft),
+      0 12px 28px var(--saqr-shadow-overlay);
     font-size: 13px;
+    color: var(--saqr-text-strong);
   }
 
   .toast p {

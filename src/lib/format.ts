@@ -12,11 +12,11 @@ export function unitLabel(unit: string): string {
 export function heat(celsius: number | null | undefined): string {
   if (celsius === null || celsius === undefined) return 'var(--muted)';
   const stops: [number, [number, number, number]][] = [
-    [25, [125, 211, 252]],
-    [50, [134, 239, 172]],
-    [70, [253, 224, 71]],
-    [82, [251, 146, 60]],
-    [92, [248, 113, 113]],
+    [25, [78, 93, 72]],
+    [50, [45, 202, 114]],
+    [70, [255, 194, 51]],
+    [82, [172, 113, 86]],
+    [92, [239, 68, 68]],
   ];
   if (celsius <= stops[0][0]) return rgb(stops[0][1]);
   for (let i = 1; i < stops.length; i++) {

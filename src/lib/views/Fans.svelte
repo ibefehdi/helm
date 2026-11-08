@@ -538,8 +538,9 @@
   }
 
   .seg button.on {
-    background: var(--raised);
+    background: var(--surface);
     color: var(--text);
+    box-shadow: 0 1px 2px var(--saqr-shadow-key);
   }
 
   .presets {

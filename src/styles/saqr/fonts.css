@@ -1,0 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --saqr-font-arabic: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
+  --saqr-font-latin: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --saqr-font-sans: 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+}
+
+[dir="rtl"] {
+  font-family: var(--saqr-font-arabic);
+}
+
+[dir="ltr"] {
+  font-family: var(--saqr-font-latin);
+}

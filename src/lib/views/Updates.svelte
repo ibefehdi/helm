@@ -661,7 +661,7 @@
     inset: 0;
     display: grid;
     place-items: center;
-    background: rgb(0 0 0 / 55%);
+    background: var(--saqr-utility-overlay);
     z-index: 50;
   }
 
@@ -720,8 +720,8 @@
   }
 
   .danger-fill:not(:disabled) {
-    background: var(--danger);
-    border-color: var(--danger);
-    color: #2a0a0a;
+    background: var(--saqr-action-danger);
+    border-color: var(--saqr-action-danger);
+    color: var(--saqr-action-on-danger);
   }
 </style>

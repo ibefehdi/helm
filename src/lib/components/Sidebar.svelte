@@ -2,20 +2,36 @@
   import { app, type View } from '$lib/app.svelte';
   import { api } from '$lib/api';
   import Icon, { type IconName } from './Icon.svelte';
+  import ThemeSwitch from './ThemeSwitch.svelte';
 
-  const items: { view: View; label: string; icon: IconName }[] = [
-    { view: 'overview', label: 'Overview', icon: 'overview' },
-    { view: 'fans', label: 'Fans', icon: 'fan' },
-    { view: 'sensors', label: 'Sensors', icon: 'sensors' },
-    { view: 'lighting', label: 'Lighting', icon: 'light' },
-    { view: 'overclock', label: 'Tuning', icon: 'chip' },
-    { view: 'graphics', label: 'Graphics', icon: 'gpu' },
-    { view: 'devices', label: 'Devices', icon: 'device' },
-    { view: 'storage', label: 'Storage', icon: 'disk' },
-    { view: 'updates', label: 'Updates', icon: 'update' },
-    { view: 'profiles', label: 'Profiles', icon: 'profiles' },
-    { view: 'alerts', label: 'Alerts', icon: 'alerts' },
-    { view: 'settings', label: 'Settings', icon: 'settings' },
+  const groups: { label: string; items: { view: View; label: string; icon: IconName }[] }[] = [
+    {
+      label: 'Monitor',
+      items: [
+        { view: 'overview', label: 'Overview', icon: 'overview' },
+        { view: 'fans', label: 'Fans', icon: 'fan' },
+        { view: 'sensors', label: 'Sensors', icon: 'sensors' },
+      ],
+    },
+    {
+      label: 'Control',
+      items: [
+        { view: 'lighting', label: 'Lighting', icon: 'light' },
+        { view: 'overclock', label: 'Tuning', icon: 'chip' },
+        { view: 'graphics', label: 'Graphics', icon: 'gpu' },
+      ],
+    },
+    {
+      label: 'System',
+      items: [
+        { view: 'devices', label: 'Devices', icon: 'device' },
+        { view: 'storage', label: 'Storage', icon: 'disk' },
+        { view: 'updates', label: 'Updates', icon: 'update' },
+        { view: 'profiles', label: 'Profiles', icon: 'profiles' },
+        { view: 'alerts', label: 'Alerts', icon: 'alerts' },
+        { view: 'settings', label: 'Settings', icon: 'settings' },
+      ],
+    },
   ];
 
   const alertCount = $derived(Object.keys(app.activeAlerts).length);
@@ -25,27 +41,43 @@
 
 <nav>
   <div class="brand">
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" fill="none" stroke="var(--accent)" stroke-width="2" />
-      <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" stroke="var(--accent)" stroke-width="1.4" opacity="0.55" />
-      <circle cx="12" cy="12" r="3" fill="var(--accent)" />
-    </svg>
-    <span>Helm</span>
+    <span class="mark" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" stroke-width="1.75" />
+        <path d="M12 3.75v16.5M3.75 12h16.5" stroke="currentColor" stroke-width="1.25" opacity="0.55" />
+        <circle cx="12" cy="12" r="2.4" fill="currentColor" />
+      </svg>
+    </span>
+    <span class="brand-copy">
+      <span class="brand-name">Helm</span>
+      <span class="brand-sub">Hardware</span>
+    </span>
   </div>
 
-  <ul>
-    {#each items as item (item.view)}
-      <li>
-        <button class={{ active: app.view === item.view }} onclick={() => (app.view = item.view)}>
-          <Icon name={item.icon} />
-          <span>{item.label}</span>
-          {#if item.view === 'alerts' && alertCount}
-            <span class="badge danger">{alertCount}</span>
-          {/if}
-        </button>
-      </li>
+  <div class="groups">
+    {#each groups as group (group.label)}
+      <div class="group">
+        <div class="group-label">{group.label}</div>
+        <ul>
+          {#each group.items as item (item.view)}
+            <li>
+              <button
+                class={{ active: app.view === item.view }}
+                aria-current={app.view === item.view ? 'page' : undefined}
+                onclick={() => (app.view = item.view)}
+              >
+                <Icon name={item.icon} />
+                <span>{item.label}</span>
+                {#if item.view === 'alerts' && alertCount}
+                  <span class="badge">{alertCount}</span>
+                {/if}
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </div>
     {/each}
-  </ul>
+  </div>
 
   <div class="foot">
     {#if app.overrides.failsafe}
@@ -71,6 +103,8 @@
       <span class="name">{app.activeProfile?.name ?? 'Custom'}</span>
     </div>
 
+    <ThemeSwitch compact />
+
     <div class="conn">
       <span class={['led', { ok: app.status.phase === 'ready', bad: app.status.phase === 'error' }]}></span>
       <span class="faint">{app.status.phase === 'ready' ? board || 'Connected' : app.status.phase}</span>
@@ -80,23 +114,78 @@
 
 <style>
   nav {
-    width: 212px;
+    width: 260px;
     flex: none;
     display: flex;
     flex-direction: column;
-    padding: 16px 10px;
-    border-right: 1px solid var(--line);
-    background: var(--surface);
+    background: var(--saqr-bg-surface);
+    border-right: 1px solid var(--saqr-stroke-soft);
   }
 
   .brand {
+    height: 72px;
+    flex: none;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 4px 10px 20px;
-    font-weight: 650;
-    font-size: 16px;
-    letter-spacing: 0.01em;
+    gap: 12px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--saqr-stroke-soft);
+  }
+
+  .mark {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: var(--saqr-radius-md);
+    background: var(--saqr-bg-selected);
+    color: var(--saqr-action-primary);
+  }
+
+  .brand-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .brand-name {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--saqr-text-strong);
+    line-height: 1.2;
+  }
+
+  .brand-sub {
+    font-size: 12px;
+    color: var(--saqr-text-soft);
+    line-height: 1.3;
+  }
+
+  .groups {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .group-label {
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--saqr-text-soft);
   }
 
   ul {
@@ -106,55 +195,66 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
   }
 
   li button {
+    position: relative;
     width: 100%;
     display: flex;
     align-items: center;
     gap: 10px;
     height: 36px;
-    padding: 0 10px;
+    padding: 0 12px;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: var(--saqr-radius-md);
     background: transparent;
-    color: var(--muted);
-    font-size: 13.5px;
+    color: var(--saqr-navigation-content-default);
+    font-size: 13px;
+    font-weight: 500;
     text-align: left;
   }
 
   li button:hover {
-    background: var(--hover);
-    color: var(--text);
+    background: var(--saqr-navigation-item-hover);
+    color: var(--saqr-text-strong);
   }
 
   li button.active {
-    background: var(--raised);
-    color: var(--text);
-    box-shadow: inset 2px 0 0 var(--accent);
+    background: var(--saqr-navigation-item-active);
+    color: var(--saqr-navigation-content-active);
+    font-weight: 600;
+  }
+
+  li button.active::before {
+    content: '';
+    position: absolute;
+    inset-inline-start: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: var(--saqr-radius-full);
+    background: var(--saqr-brand-clay-500);
   }
 
   li button span:not(.badge) {
     flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .badge {
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    border-radius: 9px;
+    border-radius: var(--saqr-radius-full);
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     display: grid;
     place-items: center;
-  }
-
-  .badge.danger {
-    background: var(--danger);
-    color: #2a0a0a;
+    background: var(--saqr-state-danger-surface);
+    color: var(--saqr-state-danger-content);
+    border: 1px solid var(--saqr-state-danger-border);
   }
 
   .foot {
@@ -162,17 +262,19 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 0 6px;
+    padding: 12px;
+    border-top: 1px solid var(--saqr-stroke-soft);
   }
 
   .notice {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border-radius: var(--radius-sm);
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--saqr-radius-md);
     font-size: 12px;
     font-weight: 500;
+    border: 1px solid transparent;
   }
 
   .notice span {
@@ -180,25 +282,31 @@
   }
 
   .notice.danger {
-    color: var(--danger);
-    background: color-mix(in srgb, var(--danger) 10%, transparent);
+    color: var(--saqr-state-danger-content);
+    background: var(--saqr-state-danger-surface);
+    border-color: var(--saqr-state-danger-border);
   }
 
   .notice.warn {
-    color: var(--warn);
-    background: color-mix(in srgb, var(--warn) 10%, transparent);
+    color: var(--saqr-state-warning-content);
+    background: var(--saqr-state-warning-surface);
+    border-color: var(--saqr-state-warning-border);
   }
 
   .profile {
     display: flex;
     flex-direction: column;
-    font-size: 12px;
-    padding: 0 4px;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: var(--saqr-radius-lg);
+    background: var(--saqr-bg-subtle);
+    border: 1px solid var(--saqr-stroke-soft);
   }
 
   .profile .name {
     font-weight: 600;
     font-size: 13px;
+    color: var(--saqr-text-strong);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -208,24 +316,24 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 11.5px;
+    font-size: 12px;
     padding: 0 4px;
     text-transform: capitalize;
+    color: var(--saqr-text-sub);
   }
 
   .led {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--warn);
+    background: var(--saqr-system-warning-500);
   }
 
   .led.ok {
-    background: var(--ok);
-    box-shadow: 0 0 8px var(--ok);
+    background: var(--saqr-system-success-500);
   }
 
   .led.bad {
-    background: var(--danger);
+    background: var(--saqr-system-danger-500);
   }
 </style>

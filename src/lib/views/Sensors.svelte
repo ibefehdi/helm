@@ -7,7 +7,16 @@
   import Sparkline from '$lib/components/Sparkline.svelte';
   import type { Reading } from '$lib/types';
 
-  const palette = ['#7dd3fc', '#fca5a5', '#86efac', '#fcd34d', '#c4b5fd', '#f9a8d4', '#5eead4', '#fdba74'];
+  const palette = [
+    'var(--saqr-data-series-01)',
+    'var(--saqr-data-series-02)',
+    'var(--saqr-data-series-03)',
+    'var(--saqr-data-series-04)',
+    'var(--saqr-data-series-05)',
+    'var(--saqr-data-series-06)',
+    'var(--saqr-data-series-07)',
+    'var(--saqr-data-series-08)',
+  ];
   const kinds = [
     { kind: 'Temperature', label: 'Temperatures', unit: '°C' },
     { kind: 'Fan', label: 'Fans', unit: 'rpm' },
@@ -210,8 +219,9 @@
   }
 
   .seg button.on {
-    background: var(--raised);
+    background: var(--surface);
     color: var(--text);
+    box-shadow: 0 1px 2px var(--saqr-shadow-key);
   }
 
   .table {

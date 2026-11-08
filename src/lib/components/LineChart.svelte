@@ -140,12 +140,12 @@
   }
 
   .grid {
-    stroke: var(--line);
+    stroke: var(--saqr-data-grid);
     stroke-width: 1;
   }
 
   .tick {
-    fill: var(--faint);
+    fill: var(--saqr-data-axis);
     font-size: 10.5px;
     font-family: var(--mono);
   }
@@ -160,14 +160,20 @@
     top: 8px;
     min-width: 160px;
     padding: 8px 10px;
-    border-radius: var(--radius-sm);
-    background: rgb(18 20 23 / 0.95);
-    border: 1px solid var(--line-strong);
+    border-radius: var(--saqr-radius-md);
+    background: var(--saqr-data-tooltip-bg);
+    color: var(--saqr-data-tooltip-content);
+    border: 1px solid transparent;
     font-size: 12px;
     pointer-events: none;
     display: flex;
     flex-direction: column;
     gap: 3px;
+  }
+
+  .tip .label,
+  .tip .faint {
+    color: var(--saqr-data-tooltip-content);
   }
 
   .row {

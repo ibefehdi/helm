@@ -69,6 +69,8 @@
   .shell {
     display: flex;
     height: 100vh;
+    background: var(--saqr-bg-subtle);
+    color: var(--saqr-text-strong);
   }
 
   main {
@@ -82,6 +84,6 @@
     flex: 1;
     min-width: 0;
     overflow-y: auto;
-    padding: 24px 28px 40px;
+    padding: 28px 32px 48px;
   }
 </style>

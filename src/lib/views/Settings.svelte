@@ -2,6 +2,7 @@
   import { app } from '$lib/app.svelte';
   import { api } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
+  import ThemeSwitch from '$lib/components/ThemeSwitch.svelte';
   import Toggle from '$lib/components/Toggle.svelte';
   import type { Settings } from '$lib/types';
 
@@ -20,6 +21,19 @@
 <header>
   <h1>Settings</h1>
 </header>
+
+<section>
+  <h2>Appearance</h2>
+  <div class="card group">
+    <div class="row">
+      <div class="text">
+        <span>Theme</span>
+        <span class="muted">Light or dark. Saved in this browser only, not in the engine settings.</span>
+      </div>
+      <ThemeSwitch />
+    </div>
+  </div>
+</section>
 
 {#if s}
   <section>

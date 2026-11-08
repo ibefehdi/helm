@@ -4,7 +4,23 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light" />
+    <script>
+      (function () {
+        var theme = 'light';
+        try {
+          var saved = localStorage.getItem('helm.theme');
+          if (saved === 'light' || saved === 'dark') theme = saved;
+          else if (window.matchMedia('(prefers-color-scheme: dark)').matches) theme = 'dark';
+        } catch (e) {}
+        var root = document.documentElement;
+        root.setAttribute('data-theme', theme);
+        root.classList.toggle('dark', theme === 'dark');
+        root.style.colorScheme = theme;
+        var meta = document.querySelector('meta[name="color-scheme"]');
+        if (meta) meta.setAttribute('content', theme);
+      })();
+    </script>
     <title>Helm</title>
     %sveltekit.head%
   </head>

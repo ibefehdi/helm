@@ -64,7 +64,8 @@
     align-items: center;
     gap: 14px;
     text-align: center;
-    color: var(--accent);
+    color: var(--saqr-action-primary);
+    border-radius: var(--saqr-radius-xl);
   }
 
   .panel h1 {

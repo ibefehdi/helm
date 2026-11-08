@@ -1,0 +1,42 @@
+/* Viewport, touch-target and field-text floors for phone browsers. */
+
+:root {
+  --saqr-field-font-min: 0px;
+  --saqr-target-min: 24px;
+  --saqr-viewport-frame: 100vh;
+  --saqr-viewport-min: 100vh;
+  --saqr-viewport-visual: var(--saqr-viewport-frame);
+  --saqr-viewport-offset: 0px;
+  --saqr-viewport-bottom-offset: env(safe-area-inset-bottom, 0px);
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --saqr-viewport-frame: 100dvh;
+    --saqr-viewport-min: 100svh;
+  }
+}
+
+/* iOS Safari zooms a focused field whose text is under 16px. */
+@media (max-width: 767px), (pointer: coarse) {
+  :root {
+    --saqr-field-font-min: 16px;
+  }
+}
+
+@media (pointer: coarse) {
+  :root {
+    --saqr-target-min: 44px;
+  }
+}
+
+/* Extends a small control's hit area to the target minimum without changing its size. */
+:where(.saqr-hit) {
+  position: relative;
+}
+.saqr-hit::after {
+  content: "";
+  position: absolute;
+  inset-block: min(0px, calc((100% - var(--saqr-target-min)) / 2));
+  inset-inline: min(0px, calc((100% - var(--saqr-target-min)) / 2));
+}

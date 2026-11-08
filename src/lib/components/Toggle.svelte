@@ -21,36 +21,38 @@
 <style>
   .toggle {
     position: relative;
-    width: 36px;
-    height: 20px;
+    width: 40px;
+    height: 24px;
     flex: none;
-    border-radius: 999px;
-    border: 1px solid var(--line-strong);
-    background: var(--raised);
+    border-radius: var(--saqr-radius-full);
+    border: 1px solid var(--saqr-stroke-default);
+    background: var(--saqr-bg-subtle);
     padding: 0;
-    transition: background 0.15s;
+    transition:
+      background-color 150ms ease-out,
+      border-color 150ms ease-out;
   }
 
   .knob {
     position: absolute;
     top: 2px;
     left: 2px;
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
-    background: var(--muted);
-    transition:
-      transform 0.15s,
-      background 0.15s;
+    background: var(--saqr-bg-surface);
+    border: 1px solid var(--saqr-stroke-default);
+    box-shadow: 0 1px 2px var(--saqr-shadow-key);
+    transition: transform 150ms ease-out;
   }
 
   .on {
-    background: color-mix(in srgb, var(--accent) 25%, var(--raised));
-    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    background: var(--saqr-action-primary);
+    border-color: var(--saqr-action-primary);
   }
 
   .on .knob {
     transform: translateX(16px);
-    background: var(--accent);
+    border-color: transparent;
   }
 </style>

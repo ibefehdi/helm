@@ -480,7 +480,7 @@
     border-radius: var(--radius);
     border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
     background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-    box-shadow: 0 -8px 24px rgb(0 0 0 / 40%);
+    box-shadow: 0 8px 24px var(--saqr-shadow-overlay);
     transform: translateY(140%);
     opacity: 0;
     transition:
@@ -512,7 +512,7 @@
     inset: 0;
     display: grid;
     place-items: center;
-    background: rgb(0 0 0 / 55%);
+    background: var(--saqr-utility-overlay);
     z-index: 50;
   }
 
