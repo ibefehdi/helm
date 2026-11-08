@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AssemblyName>helm-bridge</AssemblyName>
+    <RootNamespace>HelmBridge</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <GigabyteEngineDir>C:\Program Files (x86)\GIGABYTE\EasyTuneEngineService</GigabyteEngineDir>  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Runtime.Remoting" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.ServiceProcess" />
+    <Reference Include="System.Management" />
+  </ItemGroup>
+
+  <!-- Gigabyte's assemblies are resolved at runtime from their install folder; they are never copied. -->
+  <ItemGroup>
+    <Reference Include="Gigabyte.Engine">
+      <HintPath>$(GigabyteEngineDir)\Gigabyte.Engine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Gigabyte.Engine.EnvironmentControl">
+      <HintPath>$(GigabyteEngineDir)\Gigabyte.Engine.EnvironmentControl.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Gigabyte.EnvironmentControl.Common">
+      <HintPath>$(GigabyteEngineDir)\Gigabyte.EnvironmentControl.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Gigabyte.Engine.EasyTune">
+      <HintPath>$(GigabyteEngineDir)\Gigabyte.Engine.EasyTune.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Gigabyte.EasyTune.Common">
+      <HintPath>$(GigabyteEngineDir)\Gigabyte.EasyTune.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
