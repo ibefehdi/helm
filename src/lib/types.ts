@@ -296,6 +296,28 @@ export interface DeviceApply {
   brightness?: number;
 }
 
+// ---- pulsar mouse --------------------------------------------------------------
+
+export interface PulsarSnapshot {
+  present: boolean;
+  message: string | null;
+  model: string;
+  firmware: string | null;
+  online: boolean;
+  battery: number | null;
+  charging: boolean;
+  dpiStages: number[];
+  activeStage: number;
+  reportRate: number | null;
+  reportRates: number[];
+}
+
+export interface PulsarApply {
+  dpiStages?: number[];
+  activeStage?: number;
+  reportRate?: number;
+}
+
 // ---- overclocking -------------------------------------------------------------
 
 export interface OcOption {

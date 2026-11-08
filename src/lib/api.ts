@@ -14,6 +14,8 @@ import type {
   LightingZone,
   DeviceApply,
   DevicesSnapshot,
+  PulsarApply,
+  PulsarSnapshot,
   GpuApply,
   GpuSnapshot,
   OcApplyResult,
@@ -78,6 +80,9 @@ export const api = {
 
   devicesGet: () => invoke<DevicesSnapshot>('devices_get'),
   devicesApply: (change: DeviceApply) => invoke<DevicesSnapshot>('devices_apply', { change }),
+
+  pulsarGet: () => invoke<PulsarSnapshot>('pulsar_get'),
+  pulsarApply: (change: PulsarApply) => invoke<PulsarSnapshot>('pulsar_apply', { change }),
 
   storageScan: () => invoke<Disk[]>('storage_scan'),
   storageTrim: (letter: string) => invoke<string>('storage_trim', { letter }),

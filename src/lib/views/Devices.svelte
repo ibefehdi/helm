@@ -5,7 +5,7 @@
   import { api } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
   import Toggle from '$lib/components/Toggle.svelte';
-  import type { DeviceApply, DevicesSnapshot, LogiDevice } from '$lib/types';
+  import type { DeviceApply, DevicesSnapshot, LogiDevice, PulsarApply, PulsarSnapshot } from '$lib/types';
 
   let snap = $state<DevicesSnapshot | null>(null);
   let selected = $state<string | null>(null);
@@ -94,13 +94,64 @@
     app.toast('success', 'Device settings applied');
   }
 
+  // ---- Pulsar mouse -----------------------------------------------------------
+  let pulsar = $state<PulsarSnapshot | null>(null);
+  let pulsarApplying = $state(false);
+  let stages = $state<number[]>([]);
+  let activeStage = $state(1);
+  let pulsarRate = $state<number | null>(null);
+  let pulsarSeeded = $state(false);
+
+  const pulsarDirty = $derived.by(() => {
+    if (!pulsar?.present || !pulsarSeeded) return false;
+    return (
+      stages.join() !== pulsar.dpiStages.join() ||
+      activeStage !== pulsar.activeStage ||
+      (pulsar.reportRate != null && pulsarRate !== pulsar.reportRate)
+    );
+  });
+
+  function acceptPulsar(value: PulsarSnapshot) {
+    const keepDraft = pulsar?.present && pulsarSeeded && pulsarDirty;
+    pulsar = value;
+    if (value.present && !keepDraft) {
+      stages = [...value.dpiStages];
+      activeStage = value.activeStage;
+      pulsarRate = value.reportRate;
+      pulsarSeeded = true;
+    }
+  }
+
+  async function applyPulsar() {
+    if (!pulsar?.present || pulsarApplying) return;
+    pulsarApplying = true;
+    const change: PulsarApply = {};
+    if (stages.join() !== pulsar.dpiStages.join()) change.dpiStages = stages;
+    if (activeStage !== pulsar.activeStage) change.activeStage = activeStage;
+    if (pulsar.reportRate != null && pulsarRate != null && pulsarRate !== pulsar.reportRate) change.reportRate = pulsarRate;
+    const next = await app.run(() => api.pulsarApply(change));
+    pulsarApplying = false;
+    if (!next) return;
+    pulsarSeeded = false;
+    acceptPulsar(next);
+    app.toast('success', 'Pulsar settings applied');
+  }
+
   onMount(() => {
     let stop = () => {};
+    let stopPulsar = () => {};
     void listen<DevicesSnapshot>('devices', (e) => accept(e.payload)).then((unlisten) => (stop = unlisten));
     void api.devicesGet().then((value) => {
       if (!snap?.agent) accept(value);
     });
-    return () => stop();
+    void listen<PulsarSnapshot>('pulsar', (e) => acceptPulsar(e.payload)).then((unlisten) => (stopPulsar = unlisten));
+    void api.pulsarGet().then((value) => {
+      if (!pulsar?.present) acceptPulsar(value);
+    });
+    return () => {
+      stop();
+      stopPulsar();
+    };
   });
 </script>
 
