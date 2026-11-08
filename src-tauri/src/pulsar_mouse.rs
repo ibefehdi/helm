@@ -16,14 +16,32 @@ use tauri::{AppHandle, Emitter};
 
 use crate::pulsar::{self, Device, checksum};
 
+// Flash addresses, each confirmed by watching Pulsar's own HID writes while a setting changed.
 const ADDR_POLLING: u16 = 0x00;
 const ADDR_DPI_COUNT: u16 = 0x02;
 const ADDR_DPI_ACTIVE: u16 = 0x04;
+const ADDR_LOD: u16 = 0x0a;
 const ADDR_DPI_STAGES: u16 = 0x0c;
+const ADDR_DEBOUNCE: u16 = 0xa9;
+const ADDR_MOTION_SYNC: u16 = 0xab;
+const ADDR_SLEEP: u16 = 0xad;
+const ADDR_ANGLE_SNAP: u16 = 0xaf;
+const ADDR_RIPPLE: u16 = 0xb1;
+const ADDR_TURBO: u16 = 0xb5;
+const ADDR_SLEEP_MIRROR: u16 = 0xb7;
+const ADDR_LOW_POWER: u16 = 0xd7;
 const MAX_STAGES: u8 = 8;
+
+/// Low-power mode stores a battery percentage; Pulsar writes 100 for on and 0 for off.
+const LOW_POWER_ON: u8 = 0x64;
 
 /// Report rates the 8K hardware offers, as (bitmask, Hz).
 const RATES: [(u8, u32); 7] = [(1, 125), (2, 250), (4, 500), (8, 1000), (0x10, 2000), (0x20, 4000), (0x40, 8000)];
+
+/// Auto-sleep timer values Pulsar offers, in minutes.
+const SLEEP_OPTIONS: [u8; 6] = [1, 3, 6, 30, 60, 180];
+/// Lift-off distance levels the sensor accepts.
+const LOD_OPTIONS: [u8; 3] = [1, 2, 3];
 
 static SNAP: Mutex<Option<MouseSnapshot>> = Mutex::new(None);
 
@@ -32,6 +50,8 @@ static SNAP: Mutex<Option<MouseSnapshot>> = Mutex::new(None);
 pub struct MouseSnapshot {
     pub present: bool,
     pub message: Option<String>,
+    /// True when Pulsar's own app is running and contending for the mouse.
+    pub vendor_app: bool,
     pub model: String,
     pub firmware: Option<String>,
     pub online: bool,
@@ -41,6 +61,16 @@ pub struct MouseSnapshot {
     pub active_stage: u32,
     pub report_rate: Option<u32>,
     pub report_rates: Vec<u32>,
+    pub motion_sync: bool,
+    pub ripple: bool,
+    pub angle_snap: bool,
+    pub turbo: bool,
+    pub low_power: bool,
+    pub debounce_ms: u32,
+    pub lod: u32,
+    pub lod_options: Vec<u32>,
+    pub sleep_minutes: u32,
+    pub sleep_options: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -49,6 +79,15 @@ pub struct MouseApply {
     pub dpi_stages: Option<Vec<u32>>,
     pub active_stage: Option<u32>,
     pub report_rate: Option<u32>,
+    pub motion_sync: Option<bool>,
+    pub ripple: Option<bool>,
+    pub angle_snap: Option<bool>,
+    pub turbo: Option<bool>,
+    pub low_power: Option<bool>,
+    pub debounce_ms: Option<u32>,
+    pub lod: Option<u32>,
+    pub sleep_minutes: Option<u32>,
+    pub long_distance: Option<bool>,
 }
 
 pub fn latest() -> MouseSnapshot {
@@ -99,10 +138,11 @@ fn read_byte(device: &Device, addr: u16) -> Option<u8> {
 }
 
 pub fn read() -> MouseSnapshot {
+    let vendor_app = pulsar::vendor_app_running();
     let device = match pulsar::open() {
         Ok(device) => device,
         Err(message) => {
-            return MouseSnapshot { present: false, message: Some(message), ..Default::default() };
+            return MouseSnapshot { present: false, message: Some(message), vendor_app, ..Default::default() };
         }
     };
     let online = device.online();
@@ -123,6 +163,7 @@ pub fn read() -> MouseSnapshot {
     MouseSnapshot {
         present: true,
         message: None,
+        vendor_app,
         model: device.product.clone(),
         firmware,
         online,
@@ -132,6 +173,16 @@ pub fn read() -> MouseSnapshot {
         active_stage: active,
         report_rate,
         report_rates: RATES.iter().map(|(_, hz)| *hz).collect(),
+        motion_sync: read_byte(&device, ADDR_MOTION_SYNC).unwrap_or(0) != 0,
+        ripple: read_byte(&device, ADDR_RIPPLE).unwrap_or(0) != 0,
+        angle_snap: read_byte(&device, ADDR_ANGLE_SNAP).unwrap_or(0) != 0,
+        turbo: read_byte(&device, ADDR_TURBO).unwrap_or(0) != 0,
+        low_power: read_byte(&device, ADDR_LOW_POWER).unwrap_or(0) != 0,
+        debounce_ms: read_byte(&device, ADDR_DEBOUNCE).unwrap_or(0) as u32,
+        lod: read_byte(&device, ADDR_LOD).unwrap_or(1) as u32,
+        lod_options: LOD_OPTIONS.iter().map(|v| *v as u32).collect(),
+        sleep_minutes: read_byte(&device, ADDR_SLEEP).unwrap_or(0) as u32,
+        sleep_options: SLEEP_OPTIONS.iter().map(|v| *v as u32).collect(),
     }
 }
 
@@ -172,6 +223,41 @@ pub fn apply(app: &AppHandle, change: MouseApply) -> Result<MouseSnapshot, Strin
     if let Some(hz) = change.report_rate {
         let bit = hz_to_bit(hz).ok_or("That report rate isn't one the mouse offers.")?;
         write_value(&device, ADDR_POLLING, bit)?;
+    }
+    if let Some(on) = change.motion_sync {
+        write_value(&device, ADDR_MOTION_SYNC, on as u8)?;
+    }
+    if let Some(on) = change.ripple {
+        write_value(&device, ADDR_RIPPLE, on as u8)?;
+    }
+    if let Some(on) = change.angle_snap {
+        write_value(&device, ADDR_ANGLE_SNAP, on as u8)?;
+    }
+    if let Some(on) = change.turbo {
+        write_value(&device, ADDR_TURBO, on as u8)?;
+    }
+    if let Some(on) = change.low_power {
+        write_value(&device, ADDR_LOW_POWER, if on { LOW_POWER_ON } else { 0 })?;
+    }
+    if let Some(ms) = change.debounce_ms {
+        write_value(&device, ADDR_DEBOUNCE, ms.min(255) as u8)?;
+    }
+    if let Some(lod) = change.lod {
+        if !LOD_OPTIONS.contains(&(lod as u8)) {
+            return Err("That lift-off distance isn't one the sensor accepts.".into());
+        }
+        write_value(&device, ADDR_LOD, lod as u8)?;
+    }
+    if let Some(minutes) = change.sleep_minutes {
+        if !SLEEP_OPTIONS.contains(&(minutes as u8)) {
+            return Err("That sleep timer isn't one the mouse offers.".into());
+        }
+        // Pulsar mirrors the sleep timer to both bytes.
+        write_value(&device, ADDR_SLEEP, minutes as u8)?;
+        write_value(&device, ADDR_SLEEP_MIRROR, minutes as u8)?;
+    }
+    if let Some(on) = change.long_distance {
+        device.set_long_range(on)?;
     }
     std::thread::sleep(Duration::from_millis(60));
     let snap = read();

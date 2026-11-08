@@ -100,6 +100,16 @@
   let stages = $state<number[]>([]);
   let activeStage = $state(1);
   let pulsarRate = $state<number | null>(null);
+  let motionSync = $state(false);
+  let ripple = $state(false);
+  let angleSnap = $state(false);
+  let turbo = $state(false);
+  let lowPower = $state(false);
+  let debounce = $state(0);
+  let lod = $state(1);
+  let sleep = $state(0);
+  let longDistance = $state(false);
+  let longDistanceTouched = $state(false);
   let pulsarSeeded = $state(false);
 
   const pulsarDirty = $derived.by(() => {
@@ -107,7 +117,16 @@
     return (
       stages.join() !== pulsar.dpiStages.join() ||
       activeStage !== pulsar.activeStage ||
-      (pulsar.reportRate != null && pulsarRate !== pulsar.reportRate)
+      (pulsar.reportRate != null && pulsarRate !== pulsar.reportRate) ||
+      motionSync !== pulsar.motionSync ||
+      ripple !== pulsar.ripple ||
+      angleSnap !== pulsar.angleSnap ||
+      turbo !== pulsar.turbo ||
+      lowPower !== pulsar.lowPower ||
+      debounce !== pulsar.debounceMs ||
+      lod !== pulsar.lod ||
+      sleep !== pulsar.sleepMinutes ||
+      longDistanceTouched
     );
   });
 
@@ -118,6 +137,16 @@
       stages = [...value.dpiStages];
       activeStage = value.activeStage;
       pulsarRate = value.reportRate;
+      motionSync = value.motionSync;
+      ripple = value.ripple;
+      angleSnap = value.angleSnap;
+      turbo = value.turbo;
+      lowPower = value.lowPower;
+      debounce = value.debounceMs;
+      lod = value.lod;
+      sleep = value.sleepMinutes;
+      longDistance = false;
+      longDistanceTouched = false;
       pulsarSeeded = true;
     }
   }
@@ -129,6 +158,15 @@
     if (stages.join() !== pulsar.dpiStages.join()) change.dpiStages = stages;
     if (activeStage !== pulsar.activeStage) change.activeStage = activeStage;
     if (pulsar.reportRate != null && pulsarRate != null && pulsarRate !== pulsar.reportRate) change.reportRate = pulsarRate;
+    if (motionSync !== pulsar.motionSync) change.motionSync = motionSync;
+    if (ripple !== pulsar.ripple) change.ripple = ripple;
+    if (angleSnap !== pulsar.angleSnap) change.angleSnap = angleSnap;
+    if (turbo !== pulsar.turbo) change.turbo = turbo;
+    if (lowPower !== pulsar.lowPower) change.lowPower = lowPower;
+    if (debounce !== pulsar.debounceMs) change.debounceMs = debounce;
+    if (lod !== pulsar.lod) change.lod = lod;
+    if (sleep !== pulsar.sleepMinutes) change.sleepMinutes = sleep;
+    if (longDistanceTouched) change.longDistance = longDistance;
     const next = await app.run(() => api.pulsarApply(change));
     pulsarApplying = false;
     if (!next) return;
@@ -343,6 +381,13 @@
     {/if}
   </section>
 
+  {#if pulsar.vendorApp}
+    <section class="card block note">
+      <Icon name="warn" size={16} />
+      <p class="faint">Pulsar's own app is open. Close it so Helm and Pulsar don't fight over the mouse, or readings and changes may be unreliable.</p>
+    </section>
+  {/if}
+
   {#if pulsar.dpiStages.length}
     <section class="card block">
       <div class="block-head">
@@ -384,9 +429,70 @@
     </section>
   {/if}
 
+  <section class="card block">
+    <div class="block-head">
+      <h2>Performance</h2>
+      <p class="faint">Sensor and tracking options stored on the mouse.</p>
+    </div>
+    <label class="option">
+      <div><strong>Motion Sync</strong><p class="faint">Aligns sensor sampling with the polling clock.</p></div>
+      <Toggle label="Motion Sync" checked={motionSync} onchange={(v) => (motionSync = v)} />
+    </label>
+    <label class="option">
+      <div><strong>Ripple control</strong><p class="faint">Smooths jitter at the cost of a little latency.</p></div>
+      <Toggle label="Ripple control" checked={ripple} onchange={(v) => (ripple = v)} />
+    </label>
+    <label class="option">
+      <div><strong>Angle snap</strong><p class="faint">Straightens near-horizontal and vertical motion.</p></div>
+      <Toggle label="Angle snap" checked={angleSnap} onchange={(v) => (angleSnap = v)} />
+    </label>
+    <label class="option">
+      <div><strong>Turbo / fire key</strong><p class="faint">Rapid-fire repeat on the assigned button.</p></div>
+      <Toggle label="Turbo" checked={turbo} onchange={(v) => (turbo = v)} />
+    </label>
+    <label class="slider">
+      <span>Lift-off distance</span>
+      <div class="rates">
+        {#each pulsar.lodOptions as level (level)}
+          <button class={{ on: lod === level }} onclick={() => (lod = level)}>{level}</button>
+        {/each}
+      </div>
+    </label>
+    <label class="slider">
+      <span>Debounce</span>
+      <input type="range" min="0" max="20" step="1" bind:value={debounce} />
+      <span class="num">{debounce} ms</span>
+    </label>
+  </section>
+
+  <section class="card block">
+    <div class="block-head">
+      <h2>Power</h2>
+      <p class="faint">Wireless battery and link options.</p>
+    </div>
+    <label class="slider">
+      <span>Auto-sleep</span>
+      <div class="rates">
+        {#each pulsar.sleepOptions as minutes (minutes)}
+          <button class={{ on: sleep === minutes }} onclick={() => (sleep = minutes)}>
+            {minutes < 60 ? `${minutes} min` : `${minutes / 60} h`}
+          </button>
+        {/each}
+      </div>
+    </label>
+    <label class="option">
+      <div><strong>Low-power mode</strong><p class="faint">Reduces sensor power to extend battery life.</p></div>
+      <Toggle label="Low-power mode" checked={lowPower} onchange={(v) => (lowPower = v)} />
+    </label>
+    <label class="option">
+      <div><strong>Long-distance mode</strong><p class="faint">Stronger wireless link and range; uses more battery. Applied as a command, so its state isn't read back.</p></div>
+      <Toggle label="Long-distance mode" checked={longDistance} onchange={(v) => { longDistance = v; longDistanceTouched = true; }} />
+    </label>
+  </section>
+
   <section class="card block note">
     <Icon name="warn" size={16} />
-    <p class="faint">Button assignment and macros are managed in Pulsar's own app for now. Helm handles DPI, polling rate, and the battery readout.</p>
+    <p class="faint">Button assignment and macros are still managed in Pulsar's own app. Helm covers DPI, polling, performance, power, and the battery readout.</p>
   </section>
 
   <div class={['applybar', { visible: pulsarDirty }]}>

@@ -301,6 +301,7 @@ export interface DeviceApply {
 export interface PulsarSnapshot {
   present: boolean;
   message: string | null;
+  vendorApp: boolean;
   model: string;
   firmware: string | null;
   online: boolean;
@@ -310,12 +311,31 @@ export interface PulsarSnapshot {
   activeStage: number;
   reportRate: number | null;
   reportRates: number[];
+  motionSync: boolean;
+  ripple: boolean;
+  angleSnap: boolean;
+  turbo: boolean;
+  lowPower: boolean;
+  debounceMs: number;
+  lod: number;
+  lodOptions: number[];
+  sleepMinutes: number;
+  sleepOptions: number[];
 }
 
 export interface PulsarApply {
   dpiStages?: number[];
   activeStage?: number;
   reportRate?: number;
+  motionSync?: boolean;
+  ripple?: boolean;
+  angleSnap?: boolean;
+  turbo?: boolean;
+  lowPower?: boolean;
+  debounceMs?: number;
+  lod?: number;
+  sleepMinutes?: number;
+  longDistance?: boolean;
 }
 
 // ---- overclocking -------------------------------------------------------------

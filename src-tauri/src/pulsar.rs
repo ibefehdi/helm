@@ -35,6 +35,8 @@ pub const CMD_BATTERY: u8 = 0x04;
 pub const CMD_WRITE: u8 = 0x07;
 pub const CMD_READ: u8 = 0x08;
 pub const CMD_VERSION: u8 = 0x12;
+/// Long-distance mode is a live mode command (not a flash write): `08 16 00 00 00 0a <on> …`.
+pub const CMD_LONG_RANGE: u8 = 0x16;
 
 /// `0x55 - sum(bytes)`, Pulsar's one-byte checksum over a slice.
 pub fn checksum(bytes: &[u8]) -> u8 {
@@ -137,7 +139,9 @@ pub struct Device {
     handle: OwnedHandle,
     event: OwnedHandle,
     input_len: usize,
+    #[allow(dead_code)]
     output_len: usize,
+    #[allow(dead_code)]
     pub product_id: u16,
     pub product: String,
 }
@@ -202,10 +206,6 @@ fn open_path(candidate: &Candidate) -> Result<Device, String> {
         product_id: candidate.product_id,
         product: candidate.product.clone(),
     })
-}
-
-fn report_lengths(handle: HANDLE) -> Option<(usize, usize)> {
-    caps(handle).map(|c| (c.InputReportByteLength as usize, c.OutputReportByteLength as usize))
 }
 
 fn caps(handle: HANDLE) -> Option<HIDP_CAPS> {
@@ -345,6 +345,44 @@ impl Device {
         let reply = self.exchange(&request, CMD_VERSION, 2).ok()?;
         Some(((reply[6] as u16) << 8) | reply[7] as u16)
     }
+
+    /// Set long-distance (long-range) mode with the 10-byte mode command Pulsar sends.
+    pub fn set_long_range(&self, on: bool) -> Result<(), String> {
+        let mut data = [0u8; 10];
+        data[0] = on as u8;
+        let request = frame(CMD_LONG_RANGE, 0, &data);
+        self.write(&request)
+    }
+}
+
+/// Whether Pulsar's own app is running. It holds the mouse's HID reports, so Helm warns the user
+/// to close it; otherwise the two fight over the device and reads return stale or crossed values.
+pub fn vendor_app_running() -> bool {
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
+    };
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+    if snapshot == INVALID_HANDLE_VALUE {
+        return false;
+    }
+    let mut entry: PROCESSENTRY32W = unsafe { std::mem::zeroed() };
+    entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+    let mut found = false;
+    if unsafe { Process32FirstW(snapshot, &mut entry) } != 0 {
+        loop {
+            let end = entry.szExeFile.iter().position(|c| *c == 0).unwrap_or(entry.szExeFile.len());
+            let name = String::from_utf16_lossy(&entry.szExeFile[..end]);
+            if name.eq_ignore_ascii_case("Pulsar.exe") {
+                found = true;
+                break;
+            }
+            if unsafe { Process32NextW(snapshot, &mut entry) } == 0 {
+                break;
+            }
+        }
+    }
+    unsafe { CloseHandle(snapshot) };
+    found
 }
 
 /// A reply is valid when its trailing check byte matches `0x55 - sum(first 16)`.
