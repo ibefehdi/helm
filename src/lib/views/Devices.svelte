@@ -325,6 +325,79 @@
   {/if}
 {/if}
 
+{#if pulsar?.present}
+  <section class="card identity">
+    <div>
+      <h2>{pulsar.model || 'Pulsar mouse'}</h2>
+      <p class="faint">
+        Pulsar
+        {#if pulsar.firmware}· firmware {pulsar.firmware}{/if}
+        · {pulsar.online ? 'online' : 'asleep'}
+      </p>
+    </div>
+    {#if pulsar.battery != null}
+      <div class="battery">
+        <span class="num">{pulsar.battery}%</span>
+        <span class="faint">{pulsar.charging ? 'Charging' : 'Battery'}</span>
+      </div>
+    {/if}
+  </section>
+
+  {#if pulsar.dpiStages.length}
+    <section class="card block">
+      <div class="block-head">
+        <h2>DPI</h2>
+        <p class="faint">Each stage is a step you cycle on the mouse. The highlighted one is active.</p>
+      </div>
+      <div class="steps">
+        {#each stages as stage, index (index)}
+          <label class={{ step: true, on: activeStage === index + 1 }}>
+            <input
+              class="input num"
+              type="number"
+              min="50"
+              max="32000"
+              step="50"
+              value={stage}
+              onchange={(e) => (stages = stages.map((s, i) => (i === index ? Math.round(+e.currentTarget.value) : s)))}
+            />
+            <button type="button" onclick={() => (activeStage = index + 1)}>Use</button>
+          </label>
+        {/each}
+      </div>
+    </section>
+  {/if}
+
+  {#if pulsar.reportRate != null && pulsar.reportRates.length}
+    <section class="card block">
+      <div class="block-head">
+        <h2>Polling rate</h2>
+        <p class="faint">How often the mouse reports its position.</p>
+      </div>
+      <div class="rates" role="radiogroup" aria-label="Polling rate">
+        {#each pulsar.reportRates as rate (rate)}
+          <button class={{ on: pulsarRate === rate }} role="radio" aria-checked={pulsarRate === rate} onclick={() => (pulsarRate = rate)}>
+            {rate >= 1000 ? `${rate / 1000} kHz` : `${rate} Hz`}
+          </button>
+        {/each}
+      </div>
+    </section>
+  {/if}
+
+  <section class="card block note">
+    <Icon name="warn" size={16} />
+    <p class="faint">Button assignment and macros are managed in Pulsar's own app for now. Helm handles DPI, polling rate, and the battery readout.</p>
+  </section>
+
+  <div class={['applybar', { visible: pulsarDirty }]}>
+    <span class="muted">{pulsarApplying ? 'Applying…' : 'Unapplied Pulsar changes'}</span>
+    <div class="spacer"></div>
+    <button class="btn primary" disabled={pulsarApplying} onclick={applyPulsar}>
+      <Icon name="check" size={14} />Apply
+    </button>
+  </div>
+{/if}
+
 <style>
   header {
     margin-bottom: 20px;
@@ -449,6 +522,17 @@
     display: flex;
     justify-content: space-between;
     gap: 12px;
+  }
+
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: var(--warn);
+  }
+
+  .note p {
+    margin: 0;
   }
 
   .applybar {
