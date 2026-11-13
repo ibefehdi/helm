@@ -150,7 +150,8 @@ pub fn read() -> MouseSnapshot {
     let firmware = device.version().map(|v| format!("{}.{:02}", v >> 8, v & 0xff));
 
     let count = read_byte(&device, ADDR_DPI_COUNT).unwrap_or(0).min(MAX_STAGES);
-    let active = read_byte(&device, ADDR_DPI_ACTIVE).unwrap_or(1) as u32;
+    // The firmware stores the active stage 0-based; Helm's UI is 1-based.
+    let active = read_byte(&device, ADDR_DPI_ACTIVE).unwrap_or(0) as u32 + 1;
     let mut dpi_stages = Vec::new();
     for i in 0..count {
         let addr = ADDR_DPI_STAGES + i as u16 * 4;
@@ -218,7 +219,8 @@ pub fn apply(app: &AppHandle, change: MouseApply) -> Result<MouseSnapshot, Strin
         if active < 1 || active > count {
             return Err("The active DPI stage has to be one of the configured stages.".into());
         }
-        write_value(&device, ADDR_DPI_ACTIVE, active as u8)?;
+        // Convert the 1-based UI stage to the firmware's 0-based index.
+        write_value(&device, ADDR_DPI_ACTIVE, (active - 1) as u8)?;
     }
     if let Some(hz) = change.report_rate {
         let bit = hz_to_bit(hz).ok_or("That report rate isn't one the mouse offers.")?;

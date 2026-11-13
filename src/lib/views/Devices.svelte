@@ -8,7 +8,8 @@
   import type { DeviceApply, DevicesSnapshot, LogiDevice, PulsarApply, PulsarSnapshot } from '$lib/types';
 
   let snap = $state<DevicesSnapshot | null>(null);
-  let selected = $state<string | null>(null);
+  let open = $state<{ source: 'logi'; id: string } | { source: 'pulsar' } | null>(null);
+  let section = $state<string | null>(null);
   let applying = $state(false);
 
   let levels = $state<number[]>([]);
@@ -22,7 +23,20 @@
   let brightness = $state(100);
   let seededFor = $state<string | null>(null);
 
-  const device = $derived(snap?.devices.find((item) => item.id === selected) ?? snap?.devices[0] ?? null);
+  const device = $derived.by(() => {
+    const current = open;
+    if (current?.source !== 'logi') return null;
+    return snap?.devices.find((item) => item.id === current.id) ?? null;
+  });
+  const logiSections = $derived.by(() => {
+    if (!device) return [] as { id: string; label: string }[];
+    const items: { id: string; label: string }[] = [];
+    if (device.mouse) items.push({ id: 'pointer', label: 'Pointer' });
+    if (device.audio) items.push({ id: 'audio', label: 'Audio' });
+    if (device.lighting && (device.lighting.on != null || device.lighting.brightness != null)) items.push({ id: 'lighting', label: 'Lighting' });
+    return items;
+  });
+  const logiSection = $derived(logiSections.some((item) => item.id === section) ? section : (logiSections[0]?.id ?? null));
   const dirty = $derived.by(() => {
     if (!device || seededFor !== device.id) return false;
     if (device.mouse && (activeDpi !== device.mouse.activeDpi || levels.join() !== device.mouse.levels.join())) return true;
@@ -58,12 +72,40 @@
     return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
   }
 
+  function caps(item: LogiDevice) {
+    const parts: string[] = [];
+    if (item.mouse) parts.push('Pointer');
+    if (item.audio) parts.push('Audio');
+    if (item.lighting && (item.lighting.on != null || item.lighting.brightness != null)) parts.push('Lighting');
+    return parts;
+  }
+
+  function statusLine(item: LogiDevice) {
+    const parts = [item.kind];
+    const connection = connectionLabel(item.connection);
+    if (connection) parts.push(connection);
+    if (item.state && !item.state.startsWith('INVALID')) parts.push(item.state.toLowerCase());
+    const groups = caps(item);
+    if (groups.length) parts.push(groups.join(', '));
+    return parts.join(' · ');
+  }
+
+  function openLogi(id: string) {
+    open = { source: 'logi', id };
+    section = null;
+    const item = snap?.devices.find((entry) => entry.id === id);
+    if (item && seededFor !== id) seed(item);
+  }
+
   function accept(value: DevicesSnapshot) {
-    const nextId = selected ?? value.devices[0]?.id ?? null;
-    const next = value.devices.find((item) => item.id === nextId) ?? null;
+    const openId = open?.source === 'logi' ? open.id : null;
+    const next = openId ? (value.devices.find((item) => item.id === openId) ?? null) : null;
     const keepDraft = !!(next && seededFor === next.id && dirty);
     snap = value;
-    if (!selected && next) selected = next.id;
+    if (open?.source === 'logi' && !next) {
+      open = null;
+      return;
+    }
     if (next && !keepDraft) seed(next);
   }
 
@@ -112,6 +154,17 @@
   let longDistanceTouched = $state(false);
   let pulsarSeeded = $state(false);
 
+  const pulsarSections = $derived.by(() => {
+    if (!pulsar?.present) return [] as { id: string; label: string }[];
+    const items: { id: string; label: string }[] = [];
+    if (pulsar.dpiStages.length) items.push({ id: 'dpi', label: 'DPI' });
+    if (pulsar.reportRate != null && pulsar.reportRates.length) items.push({ id: 'polling', label: 'Polling' });
+    items.push({ id: 'performance', label: 'Performance' }, { id: 'power', label: 'Power' });
+    return items;
+  });
+  const pulsarSection = $derived(pulsarSections.some((item) => item.id === section) ? section : (pulsarSections[0]?.id ?? null));
+  const pulsarCaps = $derived(pulsarSections.map((item) => item.label));
+
   const pulsarDirty = $derived.by(() => {
     if (!pulsar?.present || !pulsarSeeded) return false;
     return (
@@ -130,25 +183,41 @@
     );
   });
 
+  function seedPulsar(value: PulsarSnapshot) {
+    stages = [...value.dpiStages];
+    activeStage = value.activeStage;
+    pulsarRate = value.reportRate;
+    motionSync = value.motionSync;
+    ripple = value.ripple;
+    angleSnap = value.angleSnap;
+    turbo = value.turbo;
+    lowPower = value.lowPower;
+    debounce = value.debounceMs;
+    lod = value.lod;
+    sleep = value.sleepMinutes;
+    longDistance = false;
+    longDistanceTouched = false;
+    pulsarSeeded = true;
+  }
+
+  function openPulsar() {
+    open = { source: 'pulsar' };
+    section = null;
+    if (pulsar?.present && !pulsarSeeded) seedPulsar(pulsar);
+  }
+
+  function close() {
+    if (open?.source === 'logi' && !dirty) seededFor = null;
+    if (open?.source === 'pulsar' && !pulsarDirty) pulsarSeeded = false;
+    open = null;
+    section = null;
+  }
+
   function acceptPulsar(value: PulsarSnapshot) {
     const keepDraft = pulsar?.present && pulsarSeeded && pulsarDirty;
     pulsar = value;
-    if (value.present && !keepDraft) {
-      stages = [...value.dpiStages];
-      activeStage = value.activeStage;
-      pulsarRate = value.reportRate;
-      motionSync = value.motionSync;
-      ripple = value.ripple;
-      angleSnap = value.angleSnap;
-      turbo = value.turbo;
-      lowPower = value.lowPower;
-      debounce = value.debounceMs;
-      lod = value.lod;
-      sleep = value.sleepMinutes;
-      longDistance = false;
-      longDistanceTouched = false;
-      pulsarSeeded = true;
-    }
+    if (!value.present && open?.source === 'pulsar') open = null;
+    if (value.present && !keepDraft) seedPulsar(value);
   }
 
   async function applyPulsar() {
@@ -193,193 +262,164 @@
   });
 </script>
 
-<header>
-  <div>
-    <h1>Devices</h1>
-    <p class="muted">Mice, headsets, and keyboards through the G HUB agent already running on this PC.</p>
-  </div>
-</header>
 
-{#if !snap}
-  <div class="card empty"><p class="muted">Looking for the G HUB agent…</p></div>
-{:else if !snap.agent}
-  <div class="card empty">
-    <Icon name="warn" size={24} />
-    <p>G HUB isn't available</p>
-    <p class="muted">{snap.message}</p>
-  </div>
-{:else}
-  {#if snap.devices.length === 0}
-    <div class="card empty">
-      <p>No Logitech device is connected</p>
-      <p class="muted">Plug one in, or wake a lightspeed receiver. Helm reads it through G HUB.</p>
-    </div>
-  {:else}
-    {#if snap.devices.length > 1}
-      <div class="picker">
-        {#each snap.devices as item (item.id)}
-          <button class={{ on: device?.id === item.id }} onclick={() => (selected = item.id)}>{item.name}</button>
-        {/each}
+{#if open?.source === 'logi' && device}
+  <header>
+    <button class="btn ghost sm back" type="button" onclick={close}>‹ Devices</button>
+    <div class="split">
+      <div>
+        <h1>{device.name}</h1>
+        <p class="faint">
+          {device.kind}
+          {#if connectionLabel(device.connection)}
+            · {connectionLabel(device.connection)}
+          {/if}
+          {#if device.state && !device.state.startsWith('INVALID')}
+            · {device.state.toLowerCase()}
+          {/if}
+        </p>
       </div>
-    {/if}
-
-    {#if device}
-      <section class="card identity">
-        <div>
-          <h2>{device.name}</h2>
-          <p class="faint">
-            {device.kind}
-            {#if connectionLabel(device.connection)}
-              · {connectionLabel(device.connection)}
-            {/if}
-            {#if device.state && !device.state.startsWith('INVALID')}
-              · {device.state.toLowerCase()}
-            {/if}
-          </p>
+      {#if device.battery?.percent != null}
+        <div class="battery">
+          <span class="num">{device.battery.percent}%</span>
+          <span class="faint">{device.battery.charging ? 'Charging' : 'Battery'}</span>
         </div>
-        {#if device.battery?.percent != null}
-          <div class="battery">
-            <span class="num">{device.battery.percent}%</span>
-            <span class="faint">{device.battery.charging ? 'Charging' : 'Battery'}</span>
-          </div>
-        {/if}
-      </section>
-
-      {#if device.mouse}
-        <section class="card block">
-          <div class="block-head">
-            <h2>DPI</h2>
-            <p class="faint">The active step is what the mouse uses now.</p>
-          </div>
-          <div class="steps">
-            {#each levels as level, index (index)}
-              <label class={{ step: true, on: activeDpi === level }}>
-                <input
-                  class="input num"
-                  type="number"
-                  min="50"
-                  max="45000"
-                  value={level}
-                  onchange={(e) => {
-                    const next = Math.round(+e.currentTarget.value);
-                    levels = levels.map((item, i) => (i === index ? next : item));
-                    if (activeDpi === level) activeDpi = next;
-                  }}
-                />
-                <button type="button" onclick={() => (activeDpi = level)}>Use</button>
-              </label>
-            {/each}
-          </div>
-          {#if device.mouse.reportRates.length}
-            <div class="rates" role="radiogroup" aria-label="Report rate">
-              {#each device.mouse.reportRates as rate (rate)}
-                <button class={{ on: reportRate === rate }} role="radio" aria-checked={reportRate === rate} onclick={() => (reportRate = rate)}>
-                  {rate >= 1000 ? `${rate / 1000} kHz` : `${rate} Hz`}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </section>
       {/if}
+    </div>
+  </header>
 
-      {#if device.audio}
-        <section class="card block">
-          <div class="block-head">
-            <h2>Audio</h2>
-            <p class="faint">Levels are sent to the headset as a fraction of full scale.</p>
-          </div>
-          {#if device.audio.volume != null}
-            <label class="slider">
-              <span>Volume</span>
-              <input type="range" min="0" max="100" bind:value={volume} />
-              <span class="num">{volume}%</span>
-            </label>
-            <label class="option">
-              <span>Muted</span>
-              <Toggle label="Muted" checked={muted} onchange={(value) => (muted = value)} />
-            </label>
-          {/if}
-          {#if device.audio.sidetone != null}
-            <label class="slider">
-              <span>Sidetone</span>
-              <input type="range" min="0" max="100" bind:value={sidetone} />
-              <span class="num">{sidetone}%</span>
-            </label>
-            <label class="option">
-              <span>Sidetone off</span>
-              <Toggle label="Sidetone off" checked={sidetoneMuted} onchange={(value) => (sidetoneMuted = value)} />
-            </label>
-          {/if}
-        </section>
-      {/if}
-
-      {#if device.lighting && (device.lighting.on != null || device.lighting.brightness != null)}
-        <section class="card block">
-          <div class="block-head">
-            <h2>Lighting</h2>
-            <p class="faint">On/off and brightness. Effects stay where G HUB saved them.</p>
-          </div>
-          {#if device.lighting.on != null}
-            <label class="option">
-              <span>Lighting</span>
-              <Toggle label="Lighting" checked={lightingOn} onchange={(value) => (lightingOn = value)} />
-            </label>
-          {/if}
-          {#if device.lighting.brightness != null}
-            <label class="slider">
-              <span>Brightness</span>
-              <input type="range" min="0" max="100" bind:value={brightness} />
-              <span class="num">{brightness}%</span>
-            </label>
-          {/if}
-        </section>
-      {/if}
-
-      <div class={['applybar', { visible: dirty }]}>
-        <span class="muted">{applying ? 'Applying…' : 'Unapplied device changes'}</span>
-        <div class="spacer"></div>
-        <button class="btn primary" disabled={applying} onclick={apply}>
-          <Icon name="check" size={14} />Apply
+  {#if logiSections.length > 1}
+    <div class="picker" role="tablist" aria-label="Setting groups">
+      {#each logiSections as item (item.id)}
+        <button type="button" role="tab" aria-selected={logiSection === item.id} class={{ on: logiSection === item.id }} onclick={() => (section = item.id)}>
+          {item.label}
         </button>
-      </div>
-    {/if}
+      {/each}
+    </div>
+  {:else if logiSections.length === 0}
+    <div class="card empty">
+      <p>Nothing to change here</p>
+      <p class="muted">Helm can see this device, but it doesn't expose pointer, audio, or lighting controls.</p>
+    </div>
   {/if}
 
-  {#if snap.known.length}
+  {#if logiSection === 'pointer' && device.mouse}
     <section class="card block">
       <div class="block-head">
-        <h2>Remembered</h2>
-        <p class="faint">G HUB has seen these, and they aren't connected right now.</p>
+        <h2>DPI</h2>
+        <p class="faint">The active step is what the mouse uses now.</p>
       </div>
-      <ul class="known">
-        {#each snap.known as item (item.model + item.kind)}
-          <li>
-            <strong>{item.name}</strong>
-            <span class="faint">{item.kind}{item.lastSeen ? ` · last seen ${seen(item.lastSeen)}` : ''}</span>
-          </li>
+      <div class="steps">
+        {#each levels as level, index (index)}
+          <label class={{ step: true, on: activeDpi === level }}>
+            <input
+              class="input num"
+              type="number"
+              min="50"
+              max="45000"
+              value={level}
+              onchange={(e) => {
+                const next = Math.round(+e.currentTarget.value);
+                levels = levels.map((item, i) => (i === index ? next : item));
+                if (activeDpi === level) activeDpi = next;
+              }}
+            />
+            <button type="button" onclick={() => (activeDpi = level)}>Use</button>
+          </label>
         {/each}
-      </ul>
+      </div>
+      {#if device.mouse.reportRates.length}
+        <div class="rates" role="radiogroup" aria-label="Report rate">
+          {#each device.mouse.reportRates as rate (rate)}
+            <button class={{ on: reportRate === rate }} role="radio" aria-checked={reportRate === rate} onclick={() => (reportRate = rate)}>
+              {rate >= 1000 ? `${rate / 1000} kHz` : `${rate} Hz`}
+            </button>
+          {/each}
+        </div>
+      {/if}
     </section>
   {/if}
-{/if}
 
-{#if pulsar?.present}
-  <section class="card identity">
-    <div>
-      <h2>{pulsar.model || 'Pulsar mouse'}</h2>
-      <p class="faint">
-        Pulsar
-        {#if pulsar.firmware}· firmware {pulsar.firmware}{/if}
-        · {pulsar.online ? 'online' : 'asleep'}
-      </p>
-    </div>
-    {#if pulsar.battery != null}
-      <div class="battery">
-        <span class="num">{pulsar.battery}%</span>
-        <span class="faint">{pulsar.charging ? 'Charging' : 'Battery'}</span>
+  {#if logiSection === 'audio' && device.audio}
+    <section class="card block">
+      <div class="block-head">
+        <h2>Audio</h2>
+        <p class="faint">Levels are sent to the headset as a fraction of full scale.</p>
       </div>
-    {/if}
-  </section>
+      {#if device.audio.volume != null}
+        <label class="slider">
+          <span>Volume</span>
+          <input type="range" min="0" max="100" bind:value={volume} />
+          <span class="num">{volume}%</span>
+        </label>
+        <label class="option">
+          <span>Muted</span>
+          <Toggle label="Muted" checked={muted} onchange={(value) => (muted = value)} />
+        </label>
+      {/if}
+      {#if device.audio.sidetone != null}
+        <label class="slider">
+          <span>Sidetone</span>
+          <input type="range" min="0" max="100" bind:value={sidetone} />
+          <span class="num">{sidetone}%</span>
+        </label>
+        <label class="option">
+          <span>Sidetone off</span>
+          <Toggle label="Sidetone off" checked={sidetoneMuted} onchange={(value) => (sidetoneMuted = value)} />
+        </label>
+      {/if}
+    </section>
+  {/if}
+
+  {#if logiSection === 'lighting' && device.lighting && (device.lighting.on != null || device.lighting.brightness != null)}
+    <section class="card block">
+      <div class="block-head">
+        <h2>Lighting</h2>
+        <p class="faint">On/off and brightness. Effects stay where G HUB saved them.</p>
+      </div>
+      {#if device.lighting.on != null}
+        <label class="option">
+          <span>Lighting</span>
+          <Toggle label="Lighting" checked={lightingOn} onchange={(value) => (lightingOn = value)} />
+        </label>
+      {/if}
+      {#if device.lighting.brightness != null}
+        <label class="slider">
+          <span>Brightness</span>
+          <input type="range" min="0" max="100" bind:value={brightness} />
+          <span class="num">{brightness}%</span>
+        </label>
+      {/if}
+    </section>
+  {/if}
+
+  <div class={['applybar', { visible: dirty }]}>
+    <span class="muted">{applying ? 'Applying…' : 'Unapplied device changes'}</span>
+    <div class="spacer"></div>
+    <button class="btn primary" disabled={applying} onclick={apply}>
+      <Icon name="check" size={14} />Apply
+    </button>
+  </div>
+{:else if open?.source === 'pulsar' && pulsar?.present}
+  <header>
+    <button class="btn ghost sm back" type="button" onclick={close}>‹ Devices</button>
+    <div class="split">
+      <div>
+        <h1>{pulsar.model || 'Pulsar mouse'}</h1>
+        <p class="faint">
+          Pulsar
+          {#if pulsar.firmware}· firmware {pulsar.firmware}{/if}
+          · {pulsar.online ? 'online' : 'asleep'}
+        </p>
+      </div>
+      {#if pulsar.battery != null}
+        <div class="battery">
+          <span class="num">{pulsar.battery}%</span>
+          <span class="faint">{pulsar.charging ? 'Charging' : 'Battery'}</span>
+        </div>
+      {/if}
+    </div>
+  </header>
 
   {#if pulsar.vendorApp}
     <section class="card block note">
@@ -388,7 +428,17 @@
     </section>
   {/if}
 
-  {#if pulsar.dpiStages.length}
+  {#if pulsarSections.length > 1}
+    <div class="picker" role="tablist" aria-label="Setting groups">
+      {#each pulsarSections as item (item.id)}
+        <button type="button" role="tab" aria-selected={pulsarSection === item.id} class={{ on: pulsarSection === item.id }} onclick={() => (section = item.id)}>
+          {item.label}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  {#if pulsarSection === 'dpi' && pulsar.dpiStages.length}
     <section class="card block">
       <div class="block-head">
         <h2>DPI</h2>
@@ -413,7 +463,7 @@
     </section>
   {/if}
 
-  {#if pulsar.reportRate != null && pulsar.reportRates.length}
+  {#if pulsarSection === 'polling' && pulsar.reportRate != null && pulsar.reportRates.length}
     <section class="card block">
       <div class="block-head">
         <h2>Polling rate</h2>
@@ -429,66 +479,70 @@
     </section>
   {/if}
 
-  <section class="card block">
-    <div class="block-head">
-      <h2>Performance</h2>
-      <p class="faint">Sensor and tracking options stored on the mouse.</p>
-    </div>
-    <label class="option">
-      <div><strong>Motion Sync</strong><p class="faint">Aligns sensor sampling with the polling clock.</p></div>
-      <Toggle label="Motion Sync" checked={motionSync} onchange={(v) => (motionSync = v)} />
-    </label>
-    <label class="option">
-      <div><strong>Ripple control</strong><p class="faint">Smooths jitter at the cost of a little latency.</p></div>
-      <Toggle label="Ripple control" checked={ripple} onchange={(v) => (ripple = v)} />
-    </label>
-    <label class="option">
-      <div><strong>Angle snap</strong><p class="faint">Straightens near-horizontal and vertical motion.</p></div>
-      <Toggle label="Angle snap" checked={angleSnap} onchange={(v) => (angleSnap = v)} />
-    </label>
-    <label class="option">
-      <div><strong>Turbo / fire key</strong><p class="faint">Rapid-fire repeat on the assigned button.</p></div>
-      <Toggle label="Turbo" checked={turbo} onchange={(v) => (turbo = v)} />
-    </label>
-    <label class="slider">
-      <span>Lift-off distance</span>
-      <div class="rates">
-        {#each pulsar.lodOptions as level (level)}
-          <button class={{ on: lod === level }} onclick={() => (lod = level)}>{level}</button>
-        {/each}
+  {#if pulsarSection === 'performance'}
+    <section class="card block">
+      <div class="block-head">
+        <h2>Performance</h2>
+        <p class="faint">Sensor and tracking options stored on the mouse.</p>
       </div>
-    </label>
-    <label class="slider">
-      <span>Debounce</span>
-      <input type="range" min="0" max="20" step="1" bind:value={debounce} />
-      <span class="num">{debounce} ms</span>
-    </label>
-  </section>
+      <label class="option">
+        <div><strong>Motion Sync</strong><p class="faint">Aligns sensor sampling with the polling clock.</p></div>
+        <Toggle label="Motion Sync" checked={motionSync} onchange={(v) => (motionSync = v)} />
+      </label>
+      <label class="option">
+        <div><strong>Ripple control</strong><p class="faint">Smooths jitter at the cost of a little latency.</p></div>
+        <Toggle label="Ripple control" checked={ripple} onchange={(v) => (ripple = v)} />
+      </label>
+      <label class="option">
+        <div><strong>Angle snap</strong><p class="faint">Straightens near-horizontal and vertical motion.</p></div>
+        <Toggle label="Angle snap" checked={angleSnap} onchange={(v) => (angleSnap = v)} />
+      </label>
+      <label class="option">
+        <div><strong>Turbo / fire key</strong><p class="faint">Rapid-fire repeat on the assigned button.</p></div>
+        <Toggle label="Turbo" checked={turbo} onchange={(v) => (turbo = v)} />
+      </label>
+      <label class="slider">
+        <span>Lift-off distance</span>
+        <div class="rates">
+          {#each pulsar.lodOptions as level (level)}
+            <button class={{ on: lod === level }} onclick={() => (lod = level)}>{level}</button>
+          {/each}
+        </div>
+      </label>
+      <label class="slider">
+        <span>Debounce</span>
+        <input type="range" min="0" max="20" step="1" bind:value={debounce} />
+        <span class="num">{debounce} ms</span>
+      </label>
+    </section>
+  {/if}
 
-  <section class="card block">
-    <div class="block-head">
-      <h2>Power</h2>
-      <p class="faint">Wireless battery and link options.</p>
-    </div>
-    <label class="slider">
-      <span>Auto-sleep</span>
-      <div class="rates">
-        {#each pulsar.sleepOptions as minutes (minutes)}
-          <button class={{ on: sleep === minutes }} onclick={() => (sleep = minutes)}>
-            {minutes < 60 ? `${minutes} min` : `${minutes / 60} h`}
-          </button>
-        {/each}
+  {#if pulsarSection === 'power'}
+    <section class="card block">
+      <div class="block-head">
+        <h2>Power</h2>
+        <p class="faint">Wireless battery and link options.</p>
       </div>
-    </label>
-    <label class="option">
-      <div><strong>Low-power mode</strong><p class="faint">Reduces sensor power to extend battery life.</p></div>
-      <Toggle label="Low-power mode" checked={lowPower} onchange={(v) => (lowPower = v)} />
-    </label>
-    <label class="option">
-      <div><strong>Long-distance mode</strong><p class="faint">Stronger wireless link and range; uses more battery. Applied as a command, so its state isn't read back.</p></div>
-      <Toggle label="Long-distance mode" checked={longDistance} onchange={(v) => { longDistance = v; longDistanceTouched = true; }} />
-    </label>
-  </section>
+      <label class="slider">
+        <span>Auto-sleep</span>
+        <div class="rates">
+          {#each pulsar.sleepOptions as minutes (minutes)}
+            <button class={{ on: sleep === minutes }} onclick={() => (sleep = minutes)}>
+              {minutes < 60 ? `${minutes} min` : `${minutes / 60} h`}
+            </button>
+          {/each}
+        </div>
+      </label>
+      <label class="option">
+        <div><strong>Low-power mode</strong><p class="faint">Reduces sensor power to extend battery life.</p></div>
+        <Toggle label="Low-power mode" checked={lowPower} onchange={(v) => (lowPower = v)} />
+      </label>
+      <label class="option">
+        <div><strong>Long-distance mode</strong><p class="faint">Stronger wireless link and range; uses more battery. Applied as a command, so its state isn't read back.</p></div>
+        <Toggle label="Long-distance mode" checked={longDistance} onchange={(v) => { longDistance = v; longDistanceTouched = true; }} />
+      </label>
+    </section>
+  {/if}
 
   <section class="card block note">
     <Icon name="warn" size={16} />
@@ -502,8 +556,99 @@
       <Icon name="check" size={14} />Apply
     </button>
   </div>
-{/if}
+{:else}
+  {@const logi = snap?.agent ? snap.devices : []}
+  {@const hasPulsar = !!pulsar?.present}
 
+  <header>
+    <div>
+      <h1>Devices</h1>
+      <p class="muted">Select a device to change its settings.</p>
+    </div>
+  </header>
+
+  {#if !snap && !pulsar}
+    <div class="card empty"><p class="muted">Looking for devices…</p></div>
+  {:else if logi.length === 0 && !hasPulsar}
+    {#if snap && !snap.agent}
+      <div class="card empty">
+        <Icon name="warn" size={24} />
+        <p>G HUB isn't available</p>
+        <p class="muted">{snap.message}</p>
+      </div>
+    {:else if !snap}
+      <div class="card empty"><p class="muted">Looking for the G HUB agent…</p></div>
+    {:else}
+      <div class="card empty">
+        <p>No device is connected</p>
+        <p class="muted">Plug one in, or wake a lightspeed receiver. Helm reads Logitech gear through G HUB.</p>
+      </div>
+    {/if}
+  {:else}
+    {#if snap && !snap.agent}
+      <div class="card empty">
+        <Icon name="warn" size={24} />
+        <p>G HUB isn't available</p>
+        <p class="muted">{snap.message}</p>
+      </div>
+    {/if}
+
+    <div class="roster">
+      {#each logi as item (item.id)}
+        <button class="card row" type="button" onclick={() => openLogi(item.id)}>
+          <span class="mark"><Icon name="device" size={18} /></span>
+          <span class="meta">
+            <span class="name">{item.name}</span>
+            <span class="faint">{statusLine(item)}</span>
+          </span>
+          <span class="charge">
+            {#if item.battery?.percent != null}
+              <span class="num">{item.battery.percent}%</span>
+              <span class="faint">{item.battery.charging ? 'Charging' : 'Battery'}</span>
+            {/if}
+          </span>
+          <span class="chev" aria-hidden="true">›</span>
+        </button>
+      {/each}
+
+      {#if pulsar?.present}
+        <button class="card row" type="button" onclick={openPulsar}>
+          <span class="mark"><Icon name="device" size={18} /></span>
+          <span class="meta">
+            <span class="name">{pulsar.model || 'Pulsar mouse'}</span>
+            <span class="faint">
+              Pulsar · {pulsar.online ? 'online' : 'asleep'}{#if pulsar.firmware} · firmware {pulsar.firmware}{/if}{#if pulsarCaps.length} · {pulsarCaps.join(', ')}{/if}
+            </span>
+          </span>
+          <span class="charge">
+            {#if pulsar.battery != null}
+              <span class="num">{pulsar.battery}%</span>
+              <span class="faint">{pulsar.charging ? 'Charging' : 'Battery'}</span>
+            {/if}
+          </span>
+          <span class="chev" aria-hidden="true">›</span>
+        </button>
+      {/if}
+    </div>
+  {/if}
+
+  {#if snap?.known.length}
+    <section class="card block">
+      <div class="block-head">
+        <h2>Remembered</h2>
+        <p class="faint">G HUB has seen these, and they aren't connected right now.</p>
+      </div>
+      <ul class="known">
+        {#each snap.known as item (item.model + item.kind)}
+          <li>
+            <strong>{item.name}</strong>
+            <span class="faint">{item.kind}{item.lastSeen ? ` · last seen ${seen(item.lastSeen)}` : ''}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+{/if}
 <style>
   header {
     margin-bottom: 20px;
@@ -549,17 +694,89 @@
     background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
 
-  .identity,
   .block {
     padding: 16px 18px;
     margin-bottom: 14px;
   }
 
-  .identity {
+  .split {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 16px;
+  }
+
+  .back {
+    margin: 0 0 10px;
+    padding-left: 0;
+  }
+
+  .roster {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto 16px;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    text-align: left;
+    color: inherit;
+  }
+
+  .row:hover {
+    background: var(--hover);
+  }
+
+  .mark {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    display: grid;
+    place-items: center;
+    background: var(--raised);
+    color: var(--muted);
+  }
+
+  .meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .meta .faint {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .charge {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .chev {
+    color: var(--faint);
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .option:has(div) {
+    grid-template-columns: 1fr auto;
   }
 
   .battery {
@@ -592,7 +809,7 @@
     gap: 8px;
   }
 
-  .rates {
+  .steps + .rates {
     margin-top: 12px;
   }
 
